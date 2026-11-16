@@ -83,10 +83,10 @@ by the training command. Use a new directory for prediction output.
 
 ```bash
 python -m thermogen.predict \
-  --fasta candidates.fasta \
-  --embedding-dir embeddings/candidates \
-  --checkpoint runs/discriminator/best_model_epoch.pt \
-  --output-dir runs/candidates
+  --fasta examples/fasta/candidates.fasta \
+  --embedding-dir examples/embeddings/candidates \
+  --checkpoint checkpoints/best_model_epoch.pt \
+  --output-dir examples/candidates
 ```
 
 - `predictions.xlsx` contains one row per FASTA record, with its identifier,
