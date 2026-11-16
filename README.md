@@ -5,11 +5,8 @@ The framework combines generative sequence modeling, protein language model
 screening, and structure-guided refinement. Its application in our study
 focuses on NAD⁺-dependent methanol dehydrogenases (Mdhs).
 
-This code release contains the supervised thermostability screening component.
-It classifies the mean ESM-2 embedding of a protein sequence into class 0
-(training temperature label < 60 °C) or class 1 (training temperature label
-≥ 60 °C). The notebook derives this label from the numeric suffix of each
-embedding's `label` field. The score is the classifier's class-1 softmax output.
+This repository provides training and inference code for ThermoGen’s supervised thermostability classifier, a multilayer perceptron that uses mean ESM-2 embeddings to classify protein sequences by thermal adaptation. The training dataset draws on three sources. UniRef50 protein sequences linked to organisms with annotated optimal growth temperatures (OGTs) were used to construct the initial low-temperature (OGT < 30 °C) and high-temperature (OGT ≥ 60 °C) classes. The high-temperature class was expanded with sequences from public MGnify metagenomes and from metagenomic sequencing of geothermal spring samples collected in Tengchong, China. During training, the script reads the numeric suffix of each curated embedding’s `label` field and uses 60 °C as the cutoff to recover the encoded class. At inference, the classifier reports the predicted class and the softmax score for the high-temperature class.
+
 
 ## Installation
 
@@ -22,64 +19,35 @@ python -m thermogen.train --help
 python -m thermogen.predict --help
 ```
 
-The release environment uses Python 3.12 and PyTorch 2.5.1. The supplied
-research environment specified Python 3.7, PyTorch 1.10.1, and CUDA 11.1.
-Both commands default to CUDA when available and otherwise use CPU.
-Use `--device cpu` to select CPU explicitly.
+The environment specifies Python 3.12 and PyTorch 2.5.1.
+The training and prediction commands use CUDA when available and CPU
+otherwise. Pass `--device cpu` to run on CPU explicitly.
 
-## Prepare ESM-2 embeddings
+## Run the example
 
-Generate the layer-33 mean representation with
-[the official ESM v2.0.0 extraction script](https://github.com/facebookresearch/esm/blob/v2.0.0/scripts/extract.py).
-On first use, the script downloads the pretrained ESM-2 weights if they are absent
-from the local cache.
+### Prepare ESM-2 embeddings
 
-```bash
-curl -fLo esm_extract.py https://raw.githubusercontent.com/facebookresearch/esm/v2.0.0/scripts/extract.py
-python esm_extract.py esm2_t33_650M_UR50D examples/fasta/candidates.fasta examples/embeddings/candidates \
-  --repr_layers 33 --include mean
-```
-
-The command above truncates sequences longer than 1,022 residues. For inference,
-each `>HEADER` must be unique and map to `HEADER.pt`, using the full FASTA
-header text after `>` with surrounding whitespace trimmed. Headers must contain no slash or backslash. For
-training, use headers ending in the temperature in °C, such as
-`>protein_A_63.5`, so that ESM stores the label with the embedding.
-The classifier expects 1,280 values in `mean_representations[33]`.
-
-## Train
-
-Prepare separate directories of labeled `.pt` files for training and validation.
-If starting from FASTA, run the extraction command separately for each
-existing split. To reproduce the manuscript's split and label curation,
-use the original curated training and validation sets. This release expects
-the output of label curation as input.
+Use the bundled `esm_extract.py` script to generate layer-33 mean embeddings
+from `esm2_t33_650M_UR50D`. On first use, the script downloads the pretrained
+ESM-2 weights if they are absent from the local cache.
+See the [upstream ESM extraction script](https://github.com/facebookresearch/esm/blob/v2.0.0/scripts/extract.py).
 
 ```bash
-python -m thermogen.train \
-  --train-dir embeddings/train \
-  --val-dir embeddings/val \
-  --output-dir runs/discriminator
+python esm_extract.py esm2_t33_650M_UR50D \
+  examples/fasta/candidates.fasta examples/embeddings/candidates \
+  --repr_layers 33 --include mean --truncation_seq_length 1022
 ```
 
-The default configuration uses 100 epochs, batch size 1,024, Adam at
-0.0001, and StepLR with a 10-epoch step and a multiplier of 0.1.
-For a smaller training set, pass a batch size between 2 and the number of
-training examples. The default PyTorch random seed is 42.
+This command truncates sequences longer than 1,022 residues. Each FASTA
+header must be unique and contain neither slashes nor backslashes. The
+embedding filename is `HEADER.pt`, where `HEADER` is the full text after
+`>` with surrounding whitespace removed. The classifier expects a
+1,280-element vector in `mean_representations[33]`.
 
-The output directory must be new. It receives TensorBoard logs, one
-`60_tm_discriminator_<epoch>.pt` checkpoint per epoch (starting at 0),
-and `best_model_epoch.pt`, selected by maximum validation accuracy.
-The first checkpoint wins a tie.
 
-The release computes metrics on the full validation split, averages loss
-by sample count, and computes ROC AUC and average precision from class-1
-scores.
+### Predict with the supplied checkpoint
 
-## Predict
-
-Pass the original classifier's state dictionary or a checkpoint generated
-by the training command. Use a new directory for prediction output.
+Use a new output directory for each run.
 
 ```bash
 python -m thermogen.predict \
@@ -89,6 +57,47 @@ python -m thermogen.predict \
   --output-dir examples/candidates_output
 ```
 
-- `predictions.xlsx` contains one row per FASTA record, with its identifier,
-  predicted class, and class-1 score.
-- `high_tm.fasta` contains all records predicted as class 1.
+- `predictions.xlsx` contains one row per input record, with the FASTA header,
+  predicted class, and class-1 softmax score.
+- `high_tm.fasta` contains the input records assigned to class 1.
+
+You can also pass a compatible classifier checkpoint produced by the training
+command below.
+
+
+## Train
+
+Prepare separate directories of labeled `.pt` embeddings for training and
+validation. If starting from FASTA, run the extraction command separately
+for each split. Each training and validation FASTA header must end in an
+underscore followed by the temperature in °C, such as `>protein_A_63.5`.
+ESM stores this header as the embedding's `label` field.
+
+```bash
+python -m thermogen.train \
+  --train-dir embeddings/train \
+  --val-dir embeddings/val \
+  --output-dir runs/discriminator
+```
+
+The command expects existing, curated data splits. To reproduce the study's
+training, use the original curated splits and temperature labels.
+
+The defaults are 100 epochs, a batch size of 1,024, Adam with a learning
+rate of 0.0001, StepLR with a 10-epoch step and a multiplier of 0.1, and a
+PyTorch seed of 42. The training loader drops its final incomplete batch.
+For a smaller training set, choose a batch size between 2 and the number
+of training examples.
+
+The output directory must be new. It receives TensorBoard logs, a
+`60_tm_discriminator_<epoch>.pt` checkpoint per epoch (starting at 0), and
+`best_model_epoch.pt`. The best checkpoint is selected by validation accuracy,
+with ties going to the earliest epoch.
+
+Validation uses the full validation split, and loss is averaged by sample
+count. ROC AUC and average precision use class-1 scores and are logged when
+the split contains both classes.
+
+## License
+
+See [LICENSE](LICENSE) for the repository license.
