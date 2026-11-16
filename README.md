@@ -86,7 +86,7 @@ python -m thermogen.predict \
   --fasta examples/fasta/candidates.fasta \
   --embedding-dir examples/embeddings/candidates \
   --checkpoint checkpoints/best_model_epoch.pt \
-  --output-dir examples/candidates
+  --output-dir examples/candidates_output
 ```
 
 - `predictions.xlsx` contains one row per FASTA record, with its identifier,
