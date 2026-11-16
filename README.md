@@ -36,8 +36,8 @@ from the local cache.
 
 ```bash
 curl -fLo esm_extract.py https://raw.githubusercontent.com/facebookresearch/esm/v2.0.0/scripts/extract.py
-python esm_extract.py esm2_t33_650M_UR50D candidates.fasta embeddings/candidates \
-  --repr_layers 33 --include mean --truncation_seq_length 1022
+python esm_extract.py esm2_t33_650M_UR50D examples/fasta/candidates.fasta examples/embeddings/candidates \
+  --repr_layers 33 --include mean
 ```
 
 The command above truncates sequences longer than 1,022 residues. For inference,
@@ -57,8 +57,8 @@ the output of label curation as input.
 
 ```bash
 python -m thermogen.train \
-  --train-dir embeddings/1_train \
-  --val-dir embeddings/1_val \
+  --train-dir embeddings/train \
+  --val-dir embeddings/val \
   --output-dir runs/discriminator
 ```
 
@@ -92,6 +92,3 @@ python -m thermogen.predict \
 - `predictions.xlsx` contains one row per FASTA record, with its identifier,
   predicted class, and class-1 score.
 - `high_tm.fasta` contains all records predicted as class 1.
-
-The manuscript's curated splits, classifier weights, and sequence design
-and structural refinement workflows are separate research assets.
