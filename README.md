@@ -10,9 +10,6 @@ It classifies the mean ESM-2 embedding of a protein sequence into class 0
 (training temperature label < 60 °C) or class 1 (training temperature label
 ≥ 60 °C). The notebook derives this label from the numeric suffix of each
 embedding's `label` field. The score is the classifier's class-1 softmax output.
-The source notebook names the label `seq_tm` and also refers to `opt` in its
-training docstring. Consult the source dataset documentation for the definition
-of the measured temperature.
 
 ## Installation
 
@@ -67,7 +64,6 @@ python -m thermogen.train \
 
 The default configuration uses 100 epochs, batch size 1,024, Adam at
 0.0001, and StepLR with a 10-epoch step and a multiplier of 0.1.
-The training loader drops its final incomplete batch, as in the notebook.
 For a smaller training set, pass a batch size between 2 and the number of
 training examples. The default PyTorch random seed is 42.
 
@@ -78,11 +74,7 @@ The first checkpoint wins a tie.
 
 The release computes metrics on the full validation split, averages loss
 by sample count, and computes ROC AUC and average precision from class-1
-scores. The notebook dropped the last incomplete validation batch,
-divided its total of batch-mean losses by the dataset size, and used hard
-predictions for ROC AUC and average precision. These changes can affect
-reported metrics and the checkpoint selected on retraining. ROC AUC and
-average precision are recorded for splits containing both classes.
+scores.
 
 ## Predict
 
